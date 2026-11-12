@@ -34,6 +34,10 @@ TRUSTED = {
 }
 
 
+# Quote and data pages that feeds list as if they were news.
+NOT_NEWS = re.compile(r"stock price.*quote|quote\s*&\s*history|stock quote|price chart|historical prices", re.I)
+
+
 def is_trusted(source: str) -> bool:
     return source.strip().lower() in TRUSTED
 
@@ -172,7 +176,8 @@ async def gather_news(client: httpx.AsyncClient, p: Profile, window: Window,
     cutoff = datetime.now(timezone.utc) - LOOKBACK[window]
     # Feeds sometimes mix in unrelated stories; company news must mention the company.
     collected = [it for it in collected
-                 if it.bucket != "company" or mentions(p, f"{it.headline} {it.summary}")]
+                 if not NOT_NEWS.search(it.headline)
+                 and (it.bucket != "company" or mentions(p, f"{it.headline} {it.summary}"))]
     # Prefer trusted outlets: treat their stories as if they were 6 hours newer when choosing.
     boost = timedelta(hours=6)
     ranked = sorted(collected, reverse=True,

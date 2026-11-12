@@ -44,3 +44,9 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   geopolitics: "Geopolitics",
   market_flow: "Whole market",
 };
+
+export interface Alert {
+  id: number; ticker: string; company: string; kind: "fast" | "day" | "test";
+  title: string; change_pct: number; price: number;
+  reason: string | null; reason_likelihood: number | null; at: string;
+}

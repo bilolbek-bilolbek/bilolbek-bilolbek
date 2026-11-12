@@ -7,6 +7,8 @@ import Watchlist from "./components/Watchlist";
 import Search from "./components/Search";
 import Logo from "./components/Logo";
 import ErrorBoundary from "./components/ErrorBoundary";
+import AskKairo from "./components/AskKairo";
+import Alerts from "./components/Alerts";
 import type { Analysis, Health, MarketContext, UniverseTicker, Window } from "./types";
 import { STATIC, getSnapshotAt, loadHealth, loadUniverse, streamExplain } from "./api";
 import { useTicks } from "./useTicks";
@@ -105,6 +107,7 @@ export default function App() {
         <Logo live={market === "open"} />
         <Search tickers={universe} onPick={pick} />
         <div className="status">
+          <Alerts onPick={pick} />
           {market && <span className={`pill market-${market}`}><i />{MARKET_LABEL[market] ?? market}</span>}
           {feed && <span className="pill feed">{FEED_LABEL[feed] ?? feed}</span>}
         </div>
@@ -183,6 +186,7 @@ export default function App() {
             <Verdict analysis={analysis} loading={loading} news={shown?.news ?? []} active={active}
                      onSelect={setActive} ticker={ticker} />
           )}
+          {shown && <AskKairo ticker={ticker} window={window} news={shown.news} />}
         </aside>
 
         {shown && <NewsFeed news={shown.news} highlighted={highlighted} />}

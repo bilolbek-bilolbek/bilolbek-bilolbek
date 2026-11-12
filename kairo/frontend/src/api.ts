@@ -1,4 +1,4 @@
-import type { Analysis, Health, MarketContext, Tick, TickStatus, UniverseTicker, Window } from "./types";
+import type { Alert, Analysis, Health, MarketContext, Tick, TickStatus, UniverseTicker, Window } from "./types";
 
 /**
  * Talks to the backend. In a static demo build (VITE_STATIC=1) there is no
@@ -133,4 +133,41 @@ function snapshotTicks(symbols: string[], onTick: (t: Tick) => void, onStatus: (
                pc: st.reference, dp: st.change_pct });
     }).catch(() => {}));
   return () => { stopped = true; };
+}
+
+export interface ChatTurn { role: "user" | "assistant"; content: string }
+
+/** Ask Kairo a question; calls onText with the answer so far as it streams in. */
+export async function askKairo(ticker: string, window: Window, question: string, history: ChatTurn[],
+                               onText: (soFar: string) => void, signal?: AbortSignal): Promise<string> {
+  if (STATIC) {
+    const msg = "Ask Kairo needs the live Kairo server. This page is a snapshot, so chat is off here.";
+    onText(msg);
+    return msg;
+  }
+  const r = await fetch(`/api/ask/${encodeURIComponent(ticker)}?window=${window}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question, history }),
+    signal,
+  });
+  if (!r.ok || !r.body) throw new Error(`Server error ${r.status}`);
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    onText(text);
+  }
+  return text;
+}
+
+/** Alerts for sharp moves. The same alert id can arrive twice: the second carries a fresher reason. */
+export function subscribeAlerts(onAlert: (a: Alert) => void): () => void {
+  if (STATIC) return () => {};
+  const es = new EventSource("/api/alerts");
+  es.addEventListener("alert", (e) => onAlert(JSON.parse((e as MessageEvent).data)));
+  return () => es.close();
 }

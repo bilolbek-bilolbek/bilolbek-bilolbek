@@ -200,6 +200,48 @@ h1, h2, h3, p { margin: 0; }
 .scan span:nth-child(2) { width: 78%; }
 .scan span:nth-child(3) { width: 54%; }
 
+/* ---- alerts ---- */
+.status { align-items: center; }
+.bell-wrap { position: relative; }
+.bell { position: relative; width: 34px; height: 30px; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); }
+.bell:hover { color: var(--text); }
+.badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--down); color: #fff; font-size: 10.5px; font-weight: 700; display: grid; place-items: center; }
+.alert-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(360px, calc(100vw - 32px)); max-height: 420px; overflow-y: auto; background: var(--card-2); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 18px 40px rgba(0,0,0,.5); z-index: 30; }
+.alert-panel-head { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px 8px; }
+.alert-panel ul { list-style: none; margin: 0; padding: 0 6px 6px; }
+.alert-item { width: 100%; text-align: left; padding: 10px 8px; border-radius: 8px; }
+.alert-item:hover { background: var(--line); }
+.pad { padding: 0 14px 14px; }
+.notify-btn { width: calc(100% - 12px); margin: 0 6px 8px; padding: 9px; border-radius: 8px; border: 1px solid var(--line-2); font-size: 12.5px; color: var(--gold-2); }
+.alert-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.alert-reason { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.toasts { position: fixed; z-index: 40; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px; width: min(340px, calc(100vw - 32px)); }
+.toast { text-align: left; padding: 12px 14px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line-2); box-shadow: 0 14px 34px rgba(0,0,0,.5); animation: toastIn 0.25s ease-out; }
+.toast.t-up { border-left: 3px solid var(--up); }
+.toast.t-down { border-left: 3px solid var(--down); }
+@keyframes toastIn { from { transform: translateY(12px); opacity: 0; } }
+
+/* ---- ask kairo ---- */
+.side { display: flex; flex-direction: column; gap: 16px; }
+.ask .card-head { margin-bottom: 10px; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.suggestion { cursor: pointer; color: var(--text); }
+.suggestion:hover { border-color: var(--gold); }
+.chat { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; margin-bottom: 12px; padding-right: 2px; }
+.msg { font-size: 13.5px; line-height: 1.55; padding: 10px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.user { align-self: flex-end; max-width: 85%; background: var(--card-2); border: 1px solid var(--line-2); }
+.msg.assistant { align-self: stretch; background: rgba(242, 184, 75, 0.06); border: 1px solid rgba(242, 184, 75, 0.18); }
+.cite { display: inline-block; font-family: var(--font-num); font-size: 11px; padding: 0 5px; margin: 0 1px; border-radius: 5px; background: var(--line-2); color: var(--gold-2); vertical-align: 1px; }
+.ask-form { display: flex; gap: 8px; }
+.ask-form input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+.send { width: 40px; border-radius: 10px; background: var(--gold); color: #1a1405; font-weight: 700; font-size: 16px; }
+.send:disabled { opacity: 0.35; cursor: default; }
+.ask .small { margin-top: 8px; }
+.typing { display: inline-flex; gap: 4px; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: pulse 1s infinite; }
+.typing i:nth-child(2) { animation-delay: 0.15s; }
+.typing i:nth-child(3) { animation-delay: 0.3s; }
+
 /* category colors */
 .cat-bg-company { background: var(--c-company); }
 .cat-bg-peers_supply_chain { background: var(--c-peers); }

@@ -147,3 +147,49 @@ def test_rate_limit_pauses_ai(monkeypatch):
         assert engine._paused_until > _time.time() + 600
     finally:
         object.__setattr__(engine.settings, "openai_api_key", "")
+
+
+def test_ask_without_key_explains_what_is_needed():
+    r = client.post("/api/ask/NVDA", json={"question": "Is this priced in?"})
+    assert r.status_code == 200 and "OPENAI_API_KEY" in r.text
+
+
+def test_ask_context_numbers_headlines():
+    import json as _json
+    from app.analyzer.chat import context_json
+    from app.context import sample_context
+    ctx = sample_context(get_profile("NVDA"), "1d")
+    data = _json.loads(context_json(ctx, None))
+    assert data["headlines"][0]["ref"] == "H1" and len(data["headlines"]) == len(ctx.news)
+
+
+def test_alert_rules():
+    from app.alerts import Detector
+    from app.live import Tick
+    d = Detector()
+    t0 = 1_800_000_000.0
+    assert d.check(Tick("NVDA", 100.0, t0, prev_close=100.0), t0) == []
+    assert d.check(Tick("NVDA", 100.5, t0 + 300, prev_close=100.0), t0 + 300) == []
+    fired = d.check(Tick("NVDA", 98.8, t0 + 600, prev_close=100.0), t0 + 600)
+    assert fired and fired[0][0] == "fast" and "−1.2% in 10 min" in fired[0][1]
+    # same rule is quiet during the cooldown
+    assert not [f for f in d.check(Tick("NVDA", 97.5, t0 + 900, prev_close=100.0), t0 + 900) if f[0] == "fast"]
+    # crossing -3% on the day fires once
+    day = [f for f in d.check(Tick("NVDA", 96.9, t0 + 960, prev_close=100.0), t0 + 960) if f[0] == "day"]
+    assert day and "today" in day[0][1]
+    assert not [f for f in d.check(Tick("NVDA", 96.8, t0 + 970, prev_close=100.0), t0 + 970) if f[0] == "day"]
+    # a stock already down 4% when Kairo starts doesn't alert until it crosses the next level
+    d2 = Detector()
+    assert not d2.check(Tick("AMD", 96.0, t0, prev_close=100.0), t0)
+    assert [f for f in d2.check(Tick("AMD", 94.9, t0 + 60, prev_close=100.0), t0 + 60) if f[0] == "day"]
+
+
+def test_test_alert_endpoint():
+    r = client.post("/api/alerts/test?ticker=AAPL").json()
+    assert r["kind"] == "test" and r["ticker"] == "AAPL" and r["title"].startswith("Test alert")
+
+
+def test_quote_pages_are_not_news():
+    from app.providers.news import NOT_NEWS
+    assert NOT_NEWS.search("Apple Inc. (AAPL) Stock Price, News, Quote & History")
+    assert not NOT_NEWS.search("Apple stock falls after iPhone sales miss")

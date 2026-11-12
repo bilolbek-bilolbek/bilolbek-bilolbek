@@ -27,10 +27,15 @@ def ai_status() -> str:
     return "on"
 
 
+def is_rate_limit(e: Exception) -> bool:
+    """OpenAI reports limits as RateLimitError, or as a plain APIError mid-stream."""
+    return isinstance(e, openai.RateLimitError) or "rate limit" in str(e).lower()
+
+
 def _pause(e: Exception) -> None:
     global _paused_until, _pause_reason
     msg = str(e)
-    if "credits" in msg or "per day" in msg or "quota" in msg:
+    if "credits" in msg or "per day" in msg or "quota" in msg or "(RPD)" in msg:
         _paused_until, _pause_reason = time.time() + 30 * 60, "OpenAI daily limit or no credits"
     else:
         _paused_until, _pause_reason = time.time() + 60, "OpenAI rate limit"
@@ -46,11 +51,12 @@ async def explain(ctx: MarketContext) -> Analysis:
         try:
             result = await openai_analyzer.analyze(
                 ctx, settings.openai_api_key, settings.openai_model, settings.openai_reasoning)
-        except openai.RateLimitError as e:
-            _pause(e)
-            warnings.append(f"AI {ai_status()}; showing the offline analyzer")
-        except Exception as e:  # any other API problem: fall back rather than show nothing
-            warnings.append(f"OpenAI analysis failed ({type(e).__name__}: {str(e)[:120]}); "
+        except Exception as e:  # any API problem: fall back rather than show nothing
+            if is_rate_limit(e):
+                _pause(e)
+                warnings.append(f"AI {ai_status()}; showing the offline analyzer")
+            else:
+                warnings.append(f"OpenAI analysis failed ({type(e).__name__}: {str(e)[:120]}); "
                             "used offline analyzer")
     if result is None:
         result = heuristic.analyze(ctx)

@@ -7,12 +7,13 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import service
+from . import alerts, service
+from .analyzer import chat
 from .analyzer.engine import ai_status
 from .config import settings
 from .context import build_context
@@ -26,16 +27,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    warmer = asyncio.create_task(service.warm_forever()) if service.warming_enabled() else None
+    tasks = []
+    if service.warming_enabled():
+        tasks.append(asyncio.create_task(service.warm_forever()))
+    if settings.data_mode != "sample":
+        tasks.append(asyncio.create_task(alerts.watch_watchlist()))
     yield
-    if warmer:
-        warmer.cancel()
+    for t in tasks:
+        t.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await warmer
+            await t
 
 
 app = FastAPI(title="Kairo", version="0.2.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
 
 TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
@@ -114,6 +119,32 @@ async def stream(ticker: str, window: Window = Query("1d")):
         yield _sse("done", {})
 
     return StreamingResponse(events(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+@app.post("/api/ask/{ticker}")
+async def ask(ticker: str, window: Window = Query("1d"),
+              question: str = Body(..., embed=True, min_length=1, max_length=1000),
+              history: list[dict] = Body(default_factory=list, embed=True)):
+    """Ask Kairo a follow-up question about one stock. Streams the answer as plain text."""
+    ctx = await _context(_ticker(ticker), window)
+    stored = service.cached(ctx.ticker, window)
+    return StreamingResponse(chat.ask(ctx, stored.analysis if stored else None, question, history),
+                             media_type="text/plain; charset=utf-8", headers=SSE_HEADERS)
+
+
+@app.get("/api/alerts")
+async def alert_stream():
+    """Alerts for sharp moves on the watchlist, as Server-Sent Events."""
+    return StreamingResponse(alerts.alert_events(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+@app.post("/api/alerts/test")
+async def test_alert(ticker: str = Query("NVDA")):
+    """Sends a clearly labelled test alert using the stock's current move (for demos)."""
+    ctx = await _context(_ticker(ticker), "1d")
+    a = alerts.center.raise_alert("test", ctx.ticker, f"Test alert: {ctx.ticker} {ctx.stock.change_pct:+.1f}% today",
+                                  ctx.stock.change_pct, ctx.stock.last)
+    return a.to_json()
 
 
 @app.get("/api/ticks")
