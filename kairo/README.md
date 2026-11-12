@@ -29,6 +29,11 @@ Built for the Sea x OpenAI Codex Hackathon, Kuala Lumpur (5 Dec 2026).
    move). Clicking a stock returns its answer in about a millisecond
    (`backend/app/service.py`).
 
+7. **Ask Kairo**: follow-up questions about the current stock, answered by the AI from the
+   same prices and headlines, with headline citations (`backend/app/analyzer/chat.py`).
+8. **Alerts**: when a watchlist stock moves 1% within 15 minutes, or crosses 3/5/7/10% on the
+   day, Kairo pops up an alert with the likely reason (`backend/app/alerts.py`).
+
 If OpenAI is unavailable or rate-limited, Kairo pauses AI calls for a while and shows a simpler
 offline analysis instead, then switches back automatically.
 
@@ -61,11 +66,26 @@ Tests: `cd backend && ../.venv/bin/python -m pytest`
 Phone demo without a server: `scripts/export_static_demo.py OUT_DIR --live` saves a snapshot of
 real data, and `VITE_STATIC=1 npx vite build --base ./` builds a version of the app that reads it.
 
+## Put it online
+
+The `Dockerfile` builds everything into one container that any Docker host can run. On
+[Render](https://render.com), for example:
+
+1. Give Kairo its own GitHub repo (or point Render at the `kairo` folder of this one).
+2. Render: **New → Web Service**, connect the repo, choose **Docker** as the runtime.
+3. Under **Environment**, add `OPENAI_API_KEY` and `FINNHUB_API_KEY`. Never put keys in the code.
+4. Create the service. Render gives you a public `https://….onrender.com` link.
+
+Free hosting plans usually sleep when nobody visits, so the first visit is slow and background
+pre-computing pauses. For the demo, use a plan that stays awake.
+
+Test the container locally: `docker build -t kairo . && docker run -p 8000:8000 --env-file backend/.env kairo`
+
 ## Getting the API keys
 
 | Key | Where | Cost |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | platform.openai.com → sign in → **Settings → Billing** (add credit) → **API keys → Create new secret key** | Pay as you go. Without credits, only a few requests a day work |
+| `OPENAI_API_KEY` | platform.openai.com → sign in → **Settings → Billing** (add credit) → **API keys → Create new secret key** | Pay as you go. Without credits: 50 requests a day, which background pre-computing uses up fast (set `WARM_WATCHLIST=false` until you add credits) |
 | `FINNHUB_API_KEY` | finnhub.io/register → the key is on your dashboard | Free tier: live trade stream + 60 requests/min |
 
 Paste them into `backend/.env`. Never commit that file (it's in `.gitignore`) and never
@@ -92,17 +112,18 @@ product:
 
 ```
 backend/app/
-  main.py               API: /api/stream/{ticker}, /api/ticks (live prices), /api/explain
+  main.py               API: /api/stream/{ticker}, /api/ticks, /api/ask/{ticker}, /api/alerts
+  alerts.py             sharp-move detection and alert feed
   live.py               live price feed (Finnhub WebSocket, Yahoo polling fallback)
   service.py            pre-computed answers, re-analysis only when something changes
   context.py            gathers prices + news in parallel, price reactions, cache
   universe.py           what each stock is connected to
   providers/            prices (Yahoo), news (Finnhub, Google News, Yahoo RSS), sample data
-  analyzer/             OpenAI analyzer, offline fallback, engine that picks one
+  analyzer/             OpenAI analyzer, Ask Kairo chat, offline fallback, engine that picks one
 frontend/src/
   App.tsx               layout, ticker search, streaming
   api.ts, useTicks.ts   server calls, live price hook
-  components/           Verdict, PriceChart, Watchlist, TickerTape, NewsFeed, Search
+  components/           Verdict, AskKairo, Alerts, PriceChart, Watchlist, TickerTape, NewsFeed, Search
 ```
 
 *Explains likely reasons for past price moves from public news. Not investment advice.*
