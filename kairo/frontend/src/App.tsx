@@ -6,6 +6,7 @@ import TickerTape from "./components/TickerTape";
 import Watchlist from "./components/Watchlist";
 import Search from "./components/Search";
 import Logo from "./components/Logo";
+import ErrorBoundary from "./components/ErrorBoundary";
 import type { Analysis, Health, MarketContext, UniverseTicker, Window } from "./types";
 import { STATIC, getSnapshotAt, loadHealth, loadUniverse, streamExplain } from "./api";
 import { useTicks } from "./useTicks";
@@ -164,8 +165,10 @@ export default function App() {
                 <div><dt>vs market</dt><dd className="mono">{signed(shown.excess_vs_market_pct)}</dd></div>
                 <div><dt>Range</dt><dd className="mono">{money(shown.stock.low)} – {money(shown.stock.high)}</dd></div>
               </dl>
-              <PriceChart series={shown.series} news={shown.news} window={window} up={up} highlighted={highlighted}
-                          reference={shown.stock.reference} live={live ? { price: live.p, t: live.t } : null} />
+              <ErrorBoundary label="The chart">
+                <PriceChart series={shown.series} news={shown.news} window={window} up={up} highlighted={highlighted}
+                            reference={shown.stock.reference} live={live ? { price: live.p, t: live.t } : null} />
+              </ErrorBoundary>
               <p className="chart-note faint">Dots mark company headlines. Tap a reason to light up its news.</p>
             </>
           ) : (

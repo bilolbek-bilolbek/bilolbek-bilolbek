@@ -6,8 +6,17 @@ const nyTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", 
 const nyDate = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
 const BAR_SECONDS: Record<Window, number> = { "1d": 300, "5d": 1800, "1mo": 86400 };
 
+// Same values as styles.css. Used when the stylesheet hasn't applied yet
+// (Safari can run this before the CSS is ready, and the chart library
+// crashes on an empty color).
+const FALLBACK: Record<string, string> = {
+  "--faint": "#626d82", "--muted": "#9aa4b6", "--grid": "#121926", "--line-2": "#273246",
+  "--up": "#34d399", "--down": "#f87171", "--gold": "#f2b84b",
+};
+
 function css(name: string) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return /^#[0-9a-f]{6}$/i.test(v) ? v : FALLBACK[name];
 }
 
 interface Props {
