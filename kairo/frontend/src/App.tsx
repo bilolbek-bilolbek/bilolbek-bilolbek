@@ -3,6 +3,7 @@ import PriceChart from "./components/PriceChart";
 import WhyPanel from "./components/WhyPanel";
 import NewsFeed from "./components/NewsFeed";
 import type { Analysis, Health, MarketContext, Window } from "./types";
+import { STATIC, loadHealth, loadUniverse, streamExplain } from "./api";
 
 const WINDOWS: { id: Window; label: string }[] = [
   { id: "1d", label: "1D" },
@@ -28,8 +29,8 @@ export default function App() {
   const [active, setActive] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/api/universe").then((r) => r.json()).then((u) => setWatchlist(u.watchlist)).catch(() => {});
-    fetch("/api/health").then((r) => r.json()).then(setHealth).catch(() => {});
+    loadUniverse().then((u) => setWatchlist(u.watchlist)).catch(() => {});
+    loadHealth().then(setHealth).catch(() => {});
   }, []);
 
   // Open a stream: headlines + prices arrive first, the AI's answer right after.
@@ -38,22 +39,14 @@ export default function App() {
     setError(null);
     setAnalysis(null);
     setActive(null);
-    history.replaceState(null, "", `?t=${ticker}`);
-    const es = new EventSource(`/api/stream/${encodeURIComponent(ticker)}?window=${window}`);
-    es.addEventListener("context", (e) => setCtx(JSON.parse((e as MessageEvent).data)));
-    es.addEventListener("analysis", (e) => {
-      setAnalysis(JSON.parse((e as MessageEvent).data));
-      setLoading(false);
+    if (!STATIC) {
+      try { history.replaceState(null, "", `?t=${ticker}`); } catch { /* not allowed in some frames */ }
+    }
+    return streamExplain(ticker, window, {
+      onContext: setCtx,
+      onAnalysis: (a) => { setAnalysis(a); setLoading(false); },
+      onError: (msg) => { setError(msg); setLoading(false); },
     });
-    es.addEventListener("error", (e) => {
-      const data = (e as MessageEvent).data;
-      if (data) setError(JSON.parse(data).message);
-      else if (es.readyState !== EventSource.CLOSED) setError("Lost connection to the server.");
-      setLoading(false);
-      es.close();
-    });
-    es.addEventListener("done", () => es.close());
-    return () => es.close();
   }, [ticker, window]);
 
   const highlighted = useMemo(
@@ -82,7 +75,7 @@ export default function App() {
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ticker, e.g. AAPL" aria-label="Ticker" />
         </form>
         <div className="status">
-          {health && <span className="pill">{health.ai.startsWith("openai") ? "AI: " + health.ai.slice(7) : "AI: offline mode"}</span>}
+          {health && <span className="pill">{STATIC ? "Demo" : health.ai.startsWith("openai") ? "AI: " + health.ai.slice(7) : "AI: offline mode"}</span>}
         </div>
       </header>
 
