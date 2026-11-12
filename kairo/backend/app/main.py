@@ -14,7 +14,7 @@ from .models import Analysis, MarketContext, Window
 from .providers.prices import PriceUnavailable
 from .universe import PROFILES, WATCHLIST
 
-app = FastAPI(title="Market Explainer", version="0.1.0")
+app = FastAPI(title="Kairo", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")

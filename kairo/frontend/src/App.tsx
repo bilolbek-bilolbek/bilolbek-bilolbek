@@ -75,7 +75,7 @@ export default function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <span className="logo">◆</span> Catalyst
+          <span className="logo">◆</span> Kairo
           <span className="tagline">Why is it moving?</span>
         </div>
         <form onSubmit={submit} className="search">

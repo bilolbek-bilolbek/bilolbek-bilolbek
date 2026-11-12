@@ -17,7 +17,7 @@ import httpx
 from ..models import Bucket, NewsItem, Window
 from ..universe import Profile
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; market-explainer/0.1)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; kairo/0.1)"}
 LOOKBACK = {"1d": timedelta(days=2), "5d": timedelta(days=7), "1mo": timedelta(days=31)}
 GOOGLE_WHEN = {"1d": "2d", "5d": "7d", "1mo": "30d"}
 PER_BUCKET = {"company": 12, "peers_supply_chain": 6, "sector": 6, "macro": 6, "geopolitics": 6}

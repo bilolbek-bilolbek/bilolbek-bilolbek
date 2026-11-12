@@ -1,12 +1,14 @@
-# Catalyst — why is this stock moving?
+# Kairo — why is this stock moving?
 
-Pick a US stock and Catalyst tells you, in a couple of seconds, the most likely reasons
+Pick a US stock and Kairo tells you, in a couple of seconds, the most likely reasons
 it's moving: company news, competitors and suppliers, its sector, the economy and
 geopolitics. Each reason gets a likelihood and links to the headlines behind it.
 
+The name comes from the Greek *kairos*, "the decisive moment".
+
 Built for the Sea x OpenAI Codex Hackathon, Kuala Lumpur (5 Dec 2026).
 
-![Catalyst screenshot](docs/screenshot.png)
+![Kairo screenshot](docs/screenshot.png)
 
 ## How it works
 
@@ -71,7 +73,7 @@ product:
   (e.g. Polygon, Alpaca, Databento).
 - **News**: use a licensed real-time feed (e.g. Benzinga, Finnhub paid) for speed and
   redistribution rights.
-- **Positioning**: Catalyst explains moves; it does not give buy/sell advice. Keep it
+- **Positioning**: Kairo explains moves; it does not give buy/sell advice. Keep it
   that way unless you get proper regulatory advice.
 - **Calibration**: check that "70% likely" reasons are right about 70% of the time, by
   replaying past moves where the cause is known.

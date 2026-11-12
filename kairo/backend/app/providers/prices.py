@@ -14,7 +14,7 @@ WINDOW_PARAMS: dict[str, tuple[str, str]] = {
 }
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; market-explainer/0.1)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; kairo/0.1)"}
 
 
 class PriceUnavailable(Exception):
