@@ -25,8 +25,16 @@ export interface Analysis {
   ticker: string; summary: string; drivers: Driver[]; unexplained: number;
   confidence: "low" | "medium" | "high"; watch_next: string[]; engine: string;
   latency_ms: number; warnings: string[];
+  analyzed_at?: string | null; from_cache?: boolean; served_ms?: number;
 }
-export interface Health { ok: boolean; data_mode: string; ai: string; finnhub: boolean }
+export interface Health {
+  ok: boolean; data_mode: string; ai: string; finnhub: boolean;
+  prices?: string; market?: string; warming?: boolean;
+}
+/** A live price update. dp = % change vs previous close. */
+export interface Tick { s: string; p: number; t: number; dp?: number; pc?: number; lag_ms?: number }
+export interface TickStatus { source: string; market: string }
+export interface UniverseTicker { ticker: string; name: string; sector: string }
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   company: "Company",

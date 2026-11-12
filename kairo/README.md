@@ -12,18 +12,25 @@ Built for the Sea x OpenAI Codex Hackathon, Kuala Lumpur (5 Dec 2026).
 
 ## How it works
 
-1. **Prices**: the stock, the S&P 500 (SPY) and its sector ETF, so we can tell a
-   stock-specific move from the whole market moving.
-2. **News in five groups**: company, peers & supply chain, sector, economy, geopolitics
-   (`backend/app/universe.py` lists what each stock is connected to).
-3. **Price reaction per headline**: for each headline we measure how the stock moved in
-   the ~30 minutes right after it (a mini event study). This gives the AI timing
-   evidence, not just text.
-4. **AI ranking**: an OpenAI model ranks the likely reasons, with likelihoods that add up
-   to 100% (including "not explained by the news"), and cites the headlines it used.
-   Without an OpenAI key, a simpler offline analyzer runs instead.
+1. **Live prices**: with a Finnhub key, every trade streams in over a WebSocket within
+   milliseconds; without one, Kairo polls Yahoo Finance every 2 seconds. One shared feed
+   serves all open screens (`backend/app/live.py`).
+2. **Market context**: the stock, the S&P 500 (SPY) and its sector ETF, so a stock-specific
+   move is separated from the whole market moving.
+3. **News in five groups**: company, peers & supply chain, sector, economy, geopolitics
+   (`backend/app/universe.py` lists what each stock is connected to). Off-topic stories are
+   filtered out and well-known outlets are preferred.
+4. **Price reaction per headline**: how the stock moved in the ~30 minutes right after each
+   headline (a mini event study). This gives the AI timing evidence, not just text.
+5. **AI ranking**: an OpenAI model ranks the likely reasons, with likelihoods that add up to
+   100% (including "not explained by the news"), citing the headlines it used.
+6. **Answers ready in advance**: a background loop keeps every listed stock's answer fresh
+   and only asks the AI again when something changes (a new company headline or a real price
+   move). Clicking a stock returns its answer in about a millisecond
+   (`backend/app/service.py`).
 
-Prices and headlines are streamed to the screen first, then the AI's answer.
+If OpenAI is unavailable or rate-limited, Kairo pauses AI calls for a while and shows a simpler
+offline analysis instead, then switches back automatically.
 
 ## Run it
 
@@ -51,12 +58,15 @@ app at http://localhost:8000.
 
 Tests: `cd backend && ../.venv/bin/python -m pytest`
 
+Phone demo without a server: `scripts/export_static_demo.py OUT_DIR --live` saves a snapshot of
+real data, and `VITE_STATIC=1 npx vite build --base ./` builds a version of the app that reads it.
+
 ## Getting the API keys
 
 | Key | Where | Cost |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | platform.openai.com → sign in → **Settings → Billing** (add a little credit) → **API keys → Create new secret key** | Pay as you go; a few cents per hundred explanations with a small model |
-| `FINNHUB_API_KEY` | finnhub.io/register → the key is on your dashboard | Free tier (60 requests/min) |
+| `OPENAI_API_KEY` | platform.openai.com → sign in → **Settings → Billing** (add credit) → **API keys → Create new secret key** | Pay as you go. Without credits, only a few requests a day work |
+| `FINNHUB_API_KEY` | finnhub.io/register → the key is on your dashboard | Free tier: live trade stream + 60 requests/min |
 
 Paste them into `backend/.env`. Never commit that file (it's in `.gitignore`) and never
 share keys in chat. OpenAI's terms have age rules, so have a team member who is 18+ own
@@ -82,14 +92,17 @@ product:
 
 ```
 backend/app/
-  main.py               API: /api/stream/{ticker} (SSE), /api/explain, /api/context
+  main.py               API: /api/stream/{ticker}, /api/ticks (live prices), /api/explain
+  live.py               live price feed (Finnhub WebSocket, Yahoo polling fallback)
+  service.py            pre-computed answers, re-analysis only when something changes
   context.py            gathers prices + news in parallel, price reactions, cache
   universe.py           what each stock is connected to
   providers/            prices (Yahoo), news (Finnhub, Google News, Yahoo RSS), sample data
   analyzer/             OpenAI analyzer, offline fallback, engine that picks one
 frontend/src/
   App.tsx               layout, ticker search, streaming
-  components/           PriceChart, WhyPanel, NewsFeed
+  api.ts, useTicks.ts   server calls, live price hook
+  components/           Verdict, PriceChart, Watchlist, TickerTape, NewsFeed, Search
 ```
 
 *Explains likely reasons for past price moves from public news. Not investment advice.*

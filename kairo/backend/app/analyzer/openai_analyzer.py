@@ -82,10 +82,23 @@ def normalize(drivers: list[Driver], unexplained: float) -> tuple[list[Driver], 
     return drivers, round(max(0.0, 1 - sum(d.likelihood for d in drivers)), 3)
 
 
-async def analyze(ctx: MarketContext, api_key: str, model: str) -> Analysis:
-    client = AsyncOpenAI(api_key=api_key)
+_client: AsyncOpenAI | None = None
+
+
+def _get_client(api_key: str) -> AsyncOpenAI:
+    # Reuse one client so the HTTPS connection stays warm between requests.
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(api_key=api_key, timeout=20, max_retries=1)
+    return _client
+
+
+async def analyze(ctx: MarketContext, api_key: str, model: str, reasoning: str = "") -> Analysis:
+    client = _get_client(api_key)
+    extra = {"reasoning": {"effort": reasoning}} if reasoning else {}
     resp = await client.responses.parse(
         model=model,
+        **extra,
         instructions=SYSTEM,
         input=_prompt(ctx),
         text_format=_LLMAnalysis,

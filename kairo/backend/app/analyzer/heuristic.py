@@ -19,13 +19,15 @@ BUCKET_WEIGHT = {"company": 1.0, "peers_supply_chain": 0.6, "sector": 0.55,
 POSITIVE = ["beat", "beats", "surge", "jump", "jumps", "soar", "rally", "upgrade", "upgrades",
             "raise", "raises", "record", "strong", "approval", "approves", "wins", "deal",
             "growth", "lifting", "rises", "gains", "easing", "progress", "buyback", "outperform"]
-NEGATIVE = ["miss", "misses", "cut", "cuts", "slide", "slides", "fall", "falls", "plunge",
+NEGATIVE = ["resigns", "resign", "ousted", "tumbles", "tumble", "selloff", "sell-off", "slump", "sinks",
+            "miss", "misses", "cut", "cuts", "slide", "slides", "fall", "falls", "plunge",
             "drop", "drops", "downgrade", "downgrades", "probe", "lawsuit", "recall", "weak",
             "weaker", "warns", "warning", "delay", "delays", "ban", "tariff", "tariffs",
             "sanctions", "fine", "investigation", "review", "uncertainty", "worries", "rattles",
             "layoffs", "slowing", "weighing", "underperform"]
 
 THEMES = [
+    ("Leadership change", r"\b(ceo|chief executive|resign\w*|steps? down|stepping down|appoint\w*|successor|ousted|fired)\b"),
     ("Earnings & guidance", r"\b(earnings?|revenue|guidance|outlook|quarter(ly)?|profits?|estimates|results)\b"),
     ("Analyst rating change", r"\b(analysts?|upgrades?|downgrades?|price target|rating)\b"),
     ("Regulation & legal", r"\b(regulat\w*|probe|antitrust|lawsuit|fine[ds]?|court|ftc|sec|review)\b"),

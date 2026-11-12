@@ -71,5 +71,8 @@ class Analysis(BaseModel):
     confidence: Literal["low", "medium", "high"]
     watch_next: list[str] = Field(default_factory=list)
     engine: str
-    latency_ms: int = 0
+    latency_ms: int = 0  # how long the AI took when this answer was made
+    analyzed_at: datetime | None = None
+    from_cache: bool = False  # True when served instantly from a pre-computed answer
+    served_ms: float = 0  # how long this request took on the server
     warnings: list[str] = Field(default_factory=list)

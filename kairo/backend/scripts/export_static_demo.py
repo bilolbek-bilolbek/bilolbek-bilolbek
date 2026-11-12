@@ -1,8 +1,9 @@
-"""Export sample-data answers for every listed ticker, for the static demo build.
+"""Export answers for every listed ticker, for the static demo build.
 
-Usage (from backend/):  ../.venv/bin/python scripts/export_static_demo.py OUT_DIR
+Usage (from backend/):
+  ../.venv/bin/python scripts/export_static_demo.py OUT_DIR          # synthetic sample data
+  ../.venv/bin/python scripts/export_static_demo.py OUT_DIR --live   # snapshot of real data now
 Writes OUT_DIR/universe.json and OUT_DIR/{TICKER}-{window}.json.
-Everything exported is synthetic sample data, never live market data.
 """
 
 import asyncio
@@ -11,9 +12,14 @@ import os
 import sys
 from pathlib import Path
 
-os.environ["DATA_MODE"] = "sample"
-os.environ["OPENAI_API_KEY"] = ""
+LIVE = "--live" in sys.argv
+os.environ["DATA_MODE"] = "live" if LIVE else "sample"
+os.environ["WARM_WATCHLIST"] = "false"
+if not LIVE:
+    os.environ["OPENAI_API_KEY"] = ""
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from datetime import datetime, timezone  # noqa: E402
 
 from app.analyzer.engine import explain  # noqa: E402
 from app.context import build_context  # noqa: E402
@@ -23,6 +29,7 @@ from app.universe import PROFILES, WATCHLIST  # noqa: E402
 async def main(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     universe = {"watchlist": WATCHLIST,
+                "snapshot_at": datetime.now(timezone.utc).isoformat() if LIVE else None,
                 "tickers": [{"ticker": p.ticker, "name": p.name, "sector": p.sector}
                             for p in PROFILES.values()]}
     (out / "universe.json").write_text(json.dumps(universe))
@@ -36,4 +43,4 @@ async def main(out: Path) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(Path(sys.argv[1])))
+    asyncio.run(main(Path([a for a in sys.argv[1:] if not a.startswith("--")][0])))

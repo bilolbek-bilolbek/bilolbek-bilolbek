@@ -100,3 +100,50 @@ def test_sample_1d_is_inside_market_hours():
     ctx = client.get("/api/context/AAPL?window=1d").json()
     first = datetime.fromisoformat(ctx["series"][0]["t"]).astimezone(ZoneInfo("America/New_York"))
     assert (first.hour, first.minute) == (9, 30) and first.weekday() < 5
+
+
+def test_company_news_must_mention_company():
+    from app.providers.news import mentions
+    p = get_profile("NVDA")
+    assert mentions(p, "Nvidia stock tumbles after CEO resigns")
+    assert mentions(p, "Why $NVDA is down today")
+    assert not mentions(p, "SpaceX, Tesla merger talks begin to take shape")
+    assert mentions(get_profile("XOM"), "Exxon raises dividend")
+
+
+def test_leadership_theme():
+    from app.models import NewsItem
+    n = NewsItem(id="a", headline="Nvidia CEO Jensen Huang resigns", source="Reuters",
+                 published_at=datetime.now(timezone.utc), bucket="company")
+    assert heuristic.theme(n) == "Leadership change" and heuristic.tone(n.headline) < 0
+
+
+def test_rate_limit_pauses_ai(monkeypatch):
+    import asyncio
+    import time as _time
+
+    import httpx
+
+    from app.analyzer import engine
+    from app.context import sample_context
+
+    calls = []
+
+    async def rate_limited(*args, **kwargs):
+        calls.append(1)
+        raise engine.openai.RateLimitError(
+            "Rate limit reached on requests per day",
+            response=httpx.Response(429, request=httpx.Request("POST", "https://api.openai.com")), body=None)
+
+    object.__setattr__(engine.settings, "openai_api_key", "test")
+    monkeypatch.setattr(engine.openai_analyzer, "analyze", rate_limited)
+    monkeypatch.setattr(engine, "_paused_until", 0.0)
+    try:
+        ctx = sample_context(get_profile("AAPL"), "1d")
+        first = asyncio.run(engine.explain(ctx))
+        second = asyncio.run(engine.explain(ctx))
+        assert first.engine.startswith("heuristic") and second.engine.startswith("heuristic")
+        assert len(calls) == 1  # the second answer didn't wait on OpenAI
+        assert engine._paused_until > _time.time() + 600
+    finally:
+        object.__setattr__(engine.settings, "openai_api_key", "")

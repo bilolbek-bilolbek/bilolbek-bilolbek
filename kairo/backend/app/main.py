@@ -1,5 +1,10 @@
+import asyncio
+import contextlib
 import json
+import logging
 import re
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -7,17 +12,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .analyzer.engine import explain
+from . import service
+from .analyzer.engine import ai_status
 from .config import settings
 from .context import build_context
+from .live import hub, market_status, tick_events
 from .models import Analysis, MarketContext, Window
 from .providers.prices import PriceUnavailable
 from .universe import PROFILES, WATCHLIST
 
-app = FastAPI(title="Kairo", version="0.1.0")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    warmer = asyncio.create_task(service.warm_forever()) if service.warming_enabled() else None
+    yield
+    if warmer:
+        warmer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await warmer
+
+
+app = FastAPI(title="Kairo", version="0.2.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
 def _ticker(raw: str) -> str:
@@ -34,6 +55,10 @@ def health():
         "data_mode": settings.data_mode,
         "ai": f"openai:{settings.openai_model}" if settings.openai_api_key else "heuristic (offline)",
         "finnhub": bool(settings.finnhub_api_key),
+        "prices": hub.source,
+        "market": market_status(),
+        "warming": service.warming_enabled(),
+        "ai_status": ai_status(),
     }
 
 
@@ -59,7 +84,10 @@ async def context(ticker: str, window: Window = Query("1d")):
 
 @app.get("/api/explain/{ticker}", response_model=Analysis)
 async def explain_once(ticker: str, window: Window = Query("1d")):
-    return await explain(await _context(_ticker(ticker), window))
+    start = time.perf_counter()
+    analysis, hit = await service.get_analysis(await _context(_ticker(ticker), window))
+    return analysis.model_copy(update={"from_cache": hit,
+                                       "served_ms": round((time.perf_counter() - start) * 1000, 1)})
 
 
 def _sse(event: str, data) -> str:
@@ -68,22 +96,33 @@ def _sse(event: str, data) -> str:
 
 @app.get("/api/stream/{ticker}")
 async def stream(ticker: str, window: Window = Query("1d")):
-    """Sends prices + headlines first (fast), then the AI analysis when it's ready."""
+    """Prices + headlines first, then the analysis (instant when pre-computed)."""
     t = _ticker(ticker)
 
     async def events():
+        start = time.perf_counter()
         try:
             ctx = await build_context(t, window)
         except Exception as e:
             yield _sse("error", {"message": f"Could not load market data: {e}"})
             return
         yield _sse("context", ctx.model_dump(mode="json"))
-        analysis = await explain(ctx)
-        yield _sse("analysis", analysis.model_dump(mode="json"))
+        analysis, hit = await service.get_analysis(ctx)
+        out = analysis.model_copy(update={"from_cache": hit,
+                                          "served_ms": round((time.perf_counter() - start) * 1000, 1)})
+        yield _sse("analysis", out.model_dump(mode="json"))
         yield _sse("done", {})
 
-    return StreamingResponse(events(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(events(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+@app.get("/api/ticks")
+async def ticks(symbols: str = Query(..., description="Comma-separated, e.g. NVDA,AAPL")):
+    """Live prices as Server-Sent Events."""
+    syms = list(dict.fromkeys(_ticker(s) for s in symbols.split(",") if s.strip()))[:30]
+    if not syms:
+        raise HTTPException(400, "No symbols")
+    return StreamingResponse(tick_events(syms), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
 # Serve the built frontend (frontend/dist) from the same server, if it exists.

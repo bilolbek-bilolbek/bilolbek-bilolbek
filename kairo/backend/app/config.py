@@ -10,9 +10,13 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 @dataclass(frozen=True)
 class Settings:
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5-mini").strip()
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip()
+    # Reasoning effort for reasoning models ("none", "low", ...). Lower = faster.
+    openai_reasoning: str = os.getenv("OPENAI_REASONING", "low").strip()
     finnhub_api_key: str = os.getenv("FINNHUB_API_KEY", "").strip()
     data_mode: str = os.getenv("DATA_MODE", "auto").strip().lower()
+    # Pre-compute answers for the watchlist in the background (instant clicks).
+    warm_watchlist: bool = os.getenv("WARM_WATCHLIST", "true").strip().lower() in ("1", "true", "yes")
     cache_ttl: float = float(os.getenv("CACHE_TTL_SECONDS", "60"))
     timeout: float = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "6"))
 

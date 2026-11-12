@@ -24,6 +24,27 @@ PER_BUCKET = {"company": 12, "peers_supply_chain": 6, "sector": 6, "macro": 6, "
 
 _TAG = re.compile(r"<[^>]+>")
 
+# Well-known financial and news outlets get priority when a group has too many headlines.
+TRUSTED = {
+    "reuters", "bloomberg", "cnbc", "the wall street journal", "wsj", "financial times",
+    "barron's", "marketwatch", "yahoo finance", "associated press", "ap news", "the new york times",
+    "axios", "business insider", "fortune", "forbes", "nikkei asia", "the information",
+    "investor's business daily", "benzinga", "seeking alpha", "the economist", "bbc", "cnn",
+    "fox business", "politico", "the washington post", "techcrunch", "the verge", "finnhub",
+}
+
+
+def is_trusted(source: str) -> bool:
+    return source.strip().lower() in TRUSTED
+
+
+def mentions(p: Profile, text: str) -> bool:
+    """Does this text talk about the company itself?"""
+    names = {p.name} | ({p.name.split()[0]} if len(p.name.split()[0]) > 3 else set())
+    if any(re.search(rf"\b{re.escape(n)}\b", text, re.I) for n in names):
+        return True
+    return re.search(rf"\b\$?{re.escape(p.ticker)}\b", text) is not None
+
 
 def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(_TAG.sub(" ", text or ""))).strip()
@@ -63,8 +84,8 @@ async def finnhub_company(client: httpx.AsyncClient, ticker: str, window: Window
                           token: str) -> list[NewsItem]:
     today = datetime.now(timezone.utc).date()
     start = today - LOOKBACK[window]
-    r = await client.get("https://finnhub.io/api/v1/company-news", params={
-        "symbol": ticker, "from": start.isoformat(), "to": today.isoformat(), "token": token})
+    r = await client.get("https://finnhub.io/api/v1/company-news", headers={"X-Finnhub-Token": token},
+                         params={"symbol": ticker, "from": start.isoformat(), "to": today.isoformat()})
     r.raise_for_status()
     return [
         _item(a["headline"], a.get("source", "Finnhub"),
@@ -75,8 +96,8 @@ async def finnhub_company(client: httpx.AsyncClient, ticker: str, window: Window
 
 
 async def finnhub_general(client: httpx.AsyncClient, window: Window, token: str) -> list[NewsItem]:
-    r = await client.get("https://finnhub.io/api/v1/news",
-                         params={"category": "general", "token": token})
+    r = await client.get("https://finnhub.io/api/v1/news", headers={"X-Finnhub-Token": token},
+                         params={"category": "general"})
     r.raise_for_status()
     cutoff = datetime.now(timezone.utc) - LOOKBACK[window]
     items = []
@@ -149,12 +170,20 @@ async def gather_news(client: httpx.AsyncClient, p: Profile, window: Window,
         collected.extend(res)
 
     cutoff = datetime.now(timezone.utc) - LOOKBACK[window]
+    # Feeds sometimes mix in unrelated stories; company news must mention the company.
+    collected = [it for it in collected
+                 if it.bucket != "company" or mentions(p, f"{it.headline} {it.summary}")]
+    # Prefer trusted outlets: treat their stories as if they were 6 hours newer when choosing.
+    boost = timedelta(hours=6)
+    ranked = sorted(collected, reverse=True,
+                    key=lambda x: x.published_at + (boost if is_trusted(x.source) else timedelta(0)))
     seen, per_bucket, items = set(), {b: 0 for b in PER_BUCKET}, []
-    for it in sorted(collected, key=lambda x: x.published_at, reverse=True):
+    for it in ranked:
         k = _key(it.headline)
         if it.published_at < cutoff or k in seen or per_bucket[it.bucket] >= PER_BUCKET[it.bucket]:
             continue
         seen.add(k)
         per_bucket[it.bucket] += 1
         items.append(it)
+    items.sort(key=lambda x: x.published_at, reverse=True)
     return items, sorted(sources), sorted(set(warnings))
