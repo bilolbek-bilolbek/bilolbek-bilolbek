@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 LIVE = "--live" in sys.argv
+AI_1D_ONLY = "--ai-1d-only" in sys.argv
 os.environ["DATA_MODE"] = "live" if LIVE else "sample"
 os.environ["WARM_WATCHLIST"] = "false"
 if not LIVE:
@@ -21,6 +22,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from datetime import datetime, timezone  # noqa: E402
 
+import time  # noqa: E402
+
+from app.analyzer import engine, heuristic  # noqa: E402
 from app.analyzer.engine import explain  # noqa: E402
 from app.context import build_context  # noqa: E402
 from app.universe import PROFILES, WATCHLIST  # noqa: E402
@@ -36,7 +40,20 @@ async def main(out: Path) -> None:
     for ticker in PROFILES:
         for window in ("1d", "5d", "1mo"):
             ctx = await build_context(ticker, window)
-            analysis = await explain(ctx)
+            # --ai-1d-only: spend AI requests on the main view only (free OpenAI plans have small limits).
+            if AI_1D_ONLY and window != "1d":
+                analysis = heuristic.analyze(ctx)
+            else:
+                analysis = await explain(ctx)
+                # Free OpenAI plans cap requests per minute: wait out a short pause and retry.
+                for _ in range(3):
+                    wait = engine._paused_until - time.time()
+                    if analysis.engine.startswith("openai") or wait <= 0 or wait > 120:
+                        break
+                    print(f"  {ticker}: OpenAI busy, waiting {wait:.0f}s")
+                    await asyncio.sleep(wait + 1)
+                    analysis = await explain(ctx)
+                print(f"  {ticker} {window}: {analysis.engine}")
             data = {"context": ctx.model_dump(mode="json"), "analysis": analysis.model_dump(mode="json")}
             (out / f"{ticker}-{window}.json").write_text(json.dumps(data, separators=(",", ":")))
     print(f"wrote {len(PROFILES) * 3 + 1} files to {out}")
