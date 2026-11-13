@@ -11,7 +11,7 @@ from .config import settings
 from .models import MarketContext, NewsItem, PriceMove, PricePoint, Window
 from .providers import news as news_provider
 from .providers import prices as price_provider
-from .providers import sample
+from .providers import sample, tiingo
 from .providers.prices import summarize
 from .universe import Profile, get_profile
 
@@ -25,7 +25,8 @@ def add_reactions(series: list[PricePoint], news: list[NewsItem], window: Window
     times = [p.t for p in series]
     k = REACTION_BARS[window]
     for n in news:
-        i = bisect.bisect_left(times, n.published_at)
+        known = max(n.published_at, n.available_at) if n.available_at else n.published_at
+        i = bisect.bisect_left(times, known)
         if i == 0 or i >= len(series):
             n.reaction_pct = None  # before the chart starts or after it ends
             continue
@@ -80,11 +81,22 @@ def sample_context(p: Profile, window: Window, warnings: list[str] | None = None
     )
 
 
+async def _fetch_price(client: httpx.AsyncClient, symbol: str, window: Window):
+    """Yahoo first (no request limits); Tiingo as the backup when Yahoo fails."""
+    try:
+        return await price_provider.fetch_yahoo(client, symbol, window)
+    except price_provider.PriceUnavailable:
+        if not settings.tiingo_api_key:
+            raise
+        return await tiingo.fetch_prices(client, symbol, window, settings.tiingo_api_key)
+
+
 async def live_context(p: Profile, window: Window) -> MarketContext:
     async with httpx.AsyncClient(timeout=settings.timeout, follow_redirects=True) as client:
         symbols = [p.ticker, BENCHMARK] + ([p.sector_etf] if p.sector_etf else [])
-        price_jobs = [price_provider.fetch_yahoo(client, s, window) for s in symbols]
-        news_job = news_provider.gather_news(client, p, window, settings.finnhub_api_key)
+        price_jobs = [_fetch_price(client, s, window) for s in symbols]
+        news_job = news_provider.gather_news(client, p, window, settings.finnhub_api_key,
+                                              settings.tiingo_api_key)
         *price_results, news_result = await asyncio.gather(
             *price_jobs, news_job, return_exceptions=True)
 

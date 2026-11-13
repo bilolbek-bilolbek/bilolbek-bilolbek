@@ -13,6 +13,7 @@ class Settings:
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip()
     # Reasoning effort for reasoning models ("none", "low", ...). Lower = faster.
     openai_reasoning: str = os.getenv("OPENAI_REASONING", "low").strip()
+    tiingo_api_key: str = os.getenv("TIINGO_API_KEY", "").strip()
     finnhub_api_key: str = os.getenv("FINNHUB_API_KEY", "").strip()
     data_mode: str = os.getenv("DATA_MODE", "auto").strip().lower()
     # Pre-compute answers for the watchlist in the background (instant clicks).

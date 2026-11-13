@@ -86,6 +86,7 @@ Test the container locally: `docker build -t kairo . && docker run -p 8000:8000 
 | Key | Where | Cost |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | platform.openai.com → sign in → **Settings → Billing** (add credit) → **API keys → Create new secret key** | Pay as you go. Without credits: 50 requests a day, which background pre-computing uses up fast (set `WARM_WATCHLIST=false` until you add credits) |
+| `TIINGO_API_KEY` | tiingo.com → account → **API → Token** | Free tier for prices (low request limits); news needs Tiingo's News API plan |
 | `FINNHUB_API_KEY` | finnhub.io/register → the key is on your dashboard | Free tier: live trade stream + 60 requests/min |
 
 Paste them into `backend/.env`. Never commit that file (it's in `.gitignore`) and never

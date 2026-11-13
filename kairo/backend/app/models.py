@@ -32,6 +32,9 @@ class NewsItem(BaseModel):
     url: str | None = None
     published_at: datetime
     bucket: Bucket
+    # When the story was first seen by a data provider (Tiingo's crawlDate), if known.
+    # This is when traders could actually have known it.
+    available_at: datetime | None = None
     # Stock % move from just before this headline to shortly after it (None if off-chart).
     reaction_pct: float | None = None
 

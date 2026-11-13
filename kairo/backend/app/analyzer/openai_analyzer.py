@@ -65,7 +65,9 @@ def _prompt(ctx: MarketContext) -> str:
         "excess_vs_sector_pct": ctx.excess_vs_sector_pct,
         "price_path": path,
         "headlines": [{"id": n.id, "bucket": n.bucket, "time": n.published_at.isoformat(timespec="minutes"),
-                       "source": n.source, "price_reaction_pct": n.reaction_pct, "headline": n.headline, "summary": n.summary[:240]}
+                       "source": n.source,
+                       "first_seen": n.available_at.isoformat(timespec="minutes") if n.available_at else None,
+                       "price_reaction_pct": n.reaction_pct, "headline": n.headline, "summary": n.summary[:240]}
                       for n in ctx.news],
     }
     return json.dumps(payload, ensure_ascii=False)

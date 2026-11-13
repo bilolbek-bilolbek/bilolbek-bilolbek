@@ -16,6 +16,7 @@ import httpx
 
 from ..models import Bucket, NewsItem, Window
 from ..universe import Profile
+from . import tiingo
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; kairo/0.1)"}
 LOOKBACK = {"1d": timedelta(days=2), "5d": timedelta(days=7), "1mo": timedelta(days=31)}
@@ -152,13 +153,15 @@ async def yahoo_rss(client: httpx.AsyncClient, ticker: str) -> list[NewsItem]:
 
 
 async def gather_news(client: httpx.AsyncClient, p: Profile, window: Window,
-                      finnhub_token: str) -> tuple[list[NewsItem], list[str], list[str]]:
+                      finnhub_token: str, tiingo_token: str = "") -> tuple[list[NewsItem], list[str], list[str]]:
     """Fetch every bucket at once. Returns (items, sources used, warnings)."""
     jobs: list[tuple[str, asyncio.Future]] = []
     company_query = f'"{p.name}" stock' if p.name != p.ticker else f"{p.ticker} stock"
     if finnhub_token:
         jobs.append(("Finnhub company news", finnhub_company(client, p.ticker, window, finnhub_token)))
         jobs.append(("Finnhub market news", finnhub_general(client, window, finnhub_token)))
+    if tiingo_token:
+        jobs.append(("Tiingo news", tiingo.company_news(client, p.ticker, window, tiingo_token, _item)))
     jobs.append(("Yahoo Finance RSS", yahoo_rss(client, p.ticker)))
     jobs.append(("Google News", google_news(client, company_query, "company", window)))
     for bucket, q in build_queries(p):
@@ -167,6 +170,9 @@ async def gather_news(client: httpx.AsyncClient, p: Profile, window: Window,
     results = await asyncio.gather(*(j for _, j in jobs), return_exceptions=True)
     sources, warnings, collected = set(), [], []
     for (name, _), res in zip(jobs, results):
+        if isinstance(res, tiingo.NewsNotInPlan):
+            warnings.append("Tiingo news needs Tiingo's News API plan")
+            continue
         if isinstance(res, Exception):
             warnings.append(f"{name} unavailable ({type(res).__name__})")
             continue

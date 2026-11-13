@@ -193,3 +193,23 @@ def test_quote_pages_are_not_news():
     from app.providers.news import NOT_NEWS
     assert NOT_NEWS.search("Apple Inc. (AAPL) Stock Price, News, Quote & History")
     assert not NOT_NEWS.search("Apple stock falls after iPhone sales miss")
+
+
+def test_tiingo_news_uses_crawl_date():
+    from app.providers import tiingo
+    from app.providers.news import _item
+    rows = [{"title": "Nvidia CEO resigns", "source": "reuters.com", "url": "https://x",
+             "description": "d", "publishedDate": "2026-11-12T15:00:00Z", "crawlDate": "2026-11-12T15:04:30Z"}]
+    item = tiingo.parse_news(rows, _item)[0]
+    assert item.available_at.minute == 4 and item.published_at.minute == 0
+
+
+def test_reaction_starts_when_story_was_seen():
+    from app.context import add_reactions
+    from app.models import NewsItem, PricePoint
+    t0 = datetime(2026, 11, 10, 15, 0, tzinfo=timezone.utc)
+    series = [PricePoint(t=t0 + timedelta(minutes=5 * i), price=100 + i) for i in range(12)]
+    n = NewsItem(id="x", headline="h", source="s", bucket="company", published_at=t0 + timedelta(minutes=1),
+                 available_at=t0 + timedelta(minutes=21))
+    add_reactions(series, [n], "1d")
+    assert n.reaction_pct == round((110 / 104 - 1) * 100, 3)  # from the 15:20 bar, 6 bars on
